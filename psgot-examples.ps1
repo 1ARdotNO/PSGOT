@@ -1,0 +1,1 @@
+Init-PSGOT -path c:\temp\psgot
