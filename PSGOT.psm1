@@ -86,69 +86,72 @@ function New-PSGOTIntuneWin {
                 $tinput=$input
                 $available=$GLOBAL:yamlimport | where {$_.PackageIdentifier -eq $tinput}
                 $newest=if($available.packageversion -gt 1){
-                    ($available | sort packageversion -descending)[0]
+                    $versions=$available.packageversion | ForEach-Object{
+                        $tempversion=$_
+                        if($tempversion -notlike "*.*"){
+                            [version]"$tempversion.0"
+                        }else{[version]$_ }
+                        
+                    } | sort -Descending
+                    $newestversion=$versions[0]
+                    $available | where {$_.packageversion -eq $newestversion.tostring()}
                 }else{$available}
                 $installer=$newest.installers 
-                $installer=$installer | where InstallerLocale -eq $locale
+                if($installer.InstallerLocale){$installer=$installer | where InstallerLocale -eq $locale}
+                if($installer.scope){$installer=$installer | where Scope -eq "machine"}
                 $installer=$installer | where Architecture -eq $Architecture
+                if($installer.InstallerUrl.count -gt 1){Write-Error "MORE THAN ONE INSTALLER FOR $tinput!"}
                 #create folderstructure
                 New-Item -ItemType Directory "$PSGOTpath\apps" -ErrorAction SilentlyContinue
                 New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)" -ErrorAction SilentlyContinue
                 New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)" -ErrorAction SilentlyContinue
                 #determineinstallertype
                 $installertype=if($newest.InstallerType){$newest.InstallerType}else{$installer.InstallerType}
-                $installername=$installer.InstallerUrl | Split-Path -Leaf
+                #selectinstallertype
+                if($installertype -gt 1){
+                    if($installertype | where {$_ -eq "msi"}){$installer=$installer | where InstallerUrl -like "*.msi"}
+                    $installertype=if($newest.InstallerType){$newest.InstallerType}else{$installer.InstallerType}
+                }
+                $installerext=if($installertype -eq "msi"){"msi"}else{"exe"}
                 #Download installer
-                if(!(test-path "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$installername")){
+                if(!(test-path "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext")){
                     $new=$true
                     "Downloading package for $appname"
-                    Invoke-WebRequest $installer.InstallerUrl -OutFile "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$installername"
+                    Invoke-WebRequest $installer.InstallerUrl -OutFile "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext" -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
                 }else{"file already exists: $PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$installername"}
                 switch($installertype){
+                    inno {
+                        $installerswitches="/NORESTART /ALLUSERS /SILENT"
+                    }
+                    nullsoft {
+                        $installerswitches="/S"
+                    }
                     exe {
                         $installerswitches=if($newest.InstallerSwitches.silent){$newest.InstallerSwitches.silent}else{$installer.InstallerSwitches.silent}
                     }
                     msi{
-
+                        $installerprefix="msiexec /i"
+                        $installerswitches="/quiet /qn /norestart"
                     }
                 }
                 "Creating intunewin...."
-                $intuneresult=. $PSGOTpath\IntuneWinAppUtil.exe -c "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)" -s "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$installername" -o "$PSGOTpath\apps\$($newest.PackageIdentifier)\" -q
+                $intuneresult=. $PSGOTpath\IntuneWinAppUtil.exe -c "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)" -s "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext" -o "$PSGOTpath\apps\$($newest.PackageIdentifier)\" -q
                 $intunefilename=($intuneresult | where {$_ -like "*has been generated successfully"}).split("'")[1]
                 
+                if($installerprefix){$installerprefix | out-file "$intunefilename.installerprefix"}
                 if($installerswitches){$installerswitches | out-file "$intunefilename.installerswitches"}
                 if($installertype){$installertype | out-file "$intunefilename.installertype"}
                 @{
                     intunewinfilename=$intunefilename
                     version = $newest.PackageVersion
                     new = $new
+                    type = $installerext
                 }
             }
         }
     }
 }
 
-function Add-PSGOTAppconfig{
-    param(
-
-    )
-    [pscustomobject]@{
-        appidentifier = "RARLab.WinRAR"
-        name = "WinRAR"
-        Description = "Tool for extracting stuff"
-        Publisher = "Publisher"
-        Category = "Set category, must exist!"
-        Restartbehaviour = ""
-        Installbehavior = "system"
-        $RegistryRule = "yes"
-        $Registrykeypath = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinRAR archiver"
-        $RegistryValuename = "DisplayVersion"
-        $RegistryDetectionmethod = "version"
-        $Registryoperator = "ge"
-        
-
-    } | ConvertTo-Json -Depth 10 | Out-File $path\appconfig\WinRar.json
-}
 
 
 function Update-PSGOTIntuneApps {
@@ -172,10 +175,14 @@ function Update-PSGOTIntuneApps {
         $sleep = 30
         ###
         $config=get-content $appconfigfile | ConvertFrom-Json
-        $intunewindetails=$config.appidentifier | New-PSGOTIntuneWin
+        $intunewindetails=$config.appidentifier | New-PSGOTIntuneWin -Architecture $config.Architecture
+
         $version=$intunewindetails.version
         $SourceFile = $intunewindetails.intunewinfilename
         
+        #get version oapp from intune, if it exists
+        $Intune_App = Get-IntuneApplication | where {$_.displayName -eq "$($config.name)"} | Sort-Object displayversion
+        $Intune_AppUpdate = Get-IntuneApplication | where {$_.displayName -eq "Update-$($config.name)"}
         # Defining Intunewin32 detectionRules
         $DetectionXML = Get-IntuneWinXML "$SourceFile" -fileName "detection.xml"
         
@@ -192,31 +199,143 @@ function Update-PSGOTIntuneApps {
         elseif($config.detectionrule -eq "msi"){
             $DetectionRule = New-DetectionRule -MSI -MSIproductCode $DetectionXML.ApplicationInfo.MsiInfo.MsiProductCode
         }
-                
+        # Defining Intunewin32 RequirementRules
+        if($config.UpdateRequirementrule -eq "file"){
+            $RequirementRule = New-RequirementRule -File -Path "C:\Program Files\Application" `
+            -FileOrFolderName "application.exe" -FileDetectionType exists -check32BitOn64System False
+
+        }elseif($config.UpdateRequirementrule -eq "registry"){
+            $RequirementRule = New-RequirementRule -Registry -RegistryKeyPath "$($config.UpdateRequirementRegistryKeyPath)" `
+            -RegistryDetectionType $config.UpdateRequirementRegistryDetectionType -RegistryValue $config.UpdateRequirementRegistryValue -check32BitRegOn64System false `
+            -RegistryDetectionOperator $config.UpdateRequirementRegistryDetectionOperator -RegistryDetectionValue $version
+        }
+        elseif($config.UpdateRequirementrule -eq "msi"){
+            $RequirementRule = New-DetectionRule -MSI -MSIproductCode $DetectionXML.ApplicationInfo.MsiInfo.MsiProductCode
+        }
+                             
         $ReturnCodes = Get-DefaultReturnCodes
         
         $ReturnCodes += New-ReturnCode -returnCode 302 -type softReboot
         $ReturnCodes += New-ReturnCode -returnCode 145 -type hardReboot
         
         #installcmdline
-        $installcmdline = if("exe"){
+        $installcmdline = if($intunewindetails.type -eq "exe"){
             $installswitches=get-content "$SourceFile.installerswitches"
             "$($DetectionXML.ApplicationInfo.setupfile) $installswitches"
+        }elseif($intunewindetails.type -eq "msi"){
+            $installswitches=get-content "$SourceFile.installerswitches"
+            $installprefix=get-content "$SourceFile.installerprefix"
+            "$installprefix $($DetectionXML.ApplicationInfo.setupfile) $installswitches"
         }
+        $RequirementRules=@($RequirementRule)
         $DetectionRules=@($DetectionRule)
         # Win32 Application Upload
-        Upload-Win32Lob -SourceFile "$SourceFile" -publisher "$($config.publisher)" `
-        -description "$($config.description)" -detectionRules $DetectionRules -returnCodes $ReturnCodes `
-        -installCmdLine "$installcmdline" `
-        -uninstallCmdLine "powershell.exe .\uninstall.ps1"
+        if($intunewindetails.type -eq "exe"){
+            if([version]$Intune_App.displayVersion -lt [version]$version ){        
+                "Sourcefile is: $SourceFile"
+                "publisher is: $($config.publisher)"
+                "description is: $($config.description)"
+                "detectopnrule is: $($DetectionRules | ConvertTo-Json)"
+                "installcmdline is: $installcmdline"
+                "Version is: $version"
+                Upload-Win32Lob -SourceFile "$SourceFile" -publisher "$($config.publisher)" `
+                -description "$($config.description)" -detectionRules $DetectionRules -returnCodes $ReturnCodes `
+                -installCmdLine "$installcmdline" `
+                -uninstallCmdLine "powershell.exe .\uninstall.ps1" -displayName "$($config.name)" -version "$version"
+                #assignment
+                $selfserviceapp=Get-IntuneApplication | where {$_.displayname -eq "$($config.name)"}| where {$_.displayversion -eq "$version"}
+                $assignmenturi="https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)/assignments"
+                Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                $content = '{"intent":"available","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
+                Invoke-RestMethod -Uri $assignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
+
+            }else{"Selfservice: The newest version of $($config.name): $version is already present in Intune"}
+    
+            if(([version]$Intune_AppUpdate.displayVersion -lt [version]$version) -and ($config.PublishUpdate -eq "true") ){ 
+                "APPUPDATE"       
+                "Sourcefile is: $SourceFile"
+                "publisher is: $($config.publisher)"
+                "description is: $($config.description)"
+                "detectopnrule is: $($DetectionRules | ConvertTo-Json)"
+                "RequirementRule is $($RequirementRules | ConvertTo-Json)"
+                "installcmdline is: $installcmdline"
+                "Version is: $version"
+                Upload-Win32Lob -SourceFile "$SourceFile" -publisher "$($config.publisher)" `
+                -description "$($config.description)" -detectionRules $DetectionRules -returnCodes $ReturnCodes `
+                -installCmdLine "$installcmdline" `
+                -uninstallCmdLine "powershell.exe .\uninstall.ps1" -displayName "Update-$($config.name)" -version "$version" -RequirementRules $RequirementRules
+                #assignment
+                $updateapp=Get-IntuneApplication | where {$_.displayname -eq "Update-$($config.name)"}| where {$_.displayversion -eq "$version"}
+                $updateassignmenturi="https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)/assignments"
+                Invoke-RestMethod -uri $updateassignmenturi -Headers $global:authToken -Method GET
+                $content = '{"intent":"required","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
+                Invoke-RestMethod -Uri $updateassignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
+
+
+            }else{"Update: The newest version of $($config.name): $version is already present in Intune"}
+        }elseif($intunewindetails.type -eq "msi"){
+            if($Intune_App.displayVersion -lt $version ){        
+                "Sourcefile is: $SourceFile"
+                "publisher is: $($config.publisher)"
+                "description is: $($config.description)"
+                "detectopnrule is: $($DetectionRules | ConvertTo-Json)"
+                "Version is: $version"
+                Upload-Win32Lob -SourceFile "$SourceFile" -publisher "$($config.publisher)" `
+                -description "$($config.description)" -detectionRules $DetectionRules -returnCodes $ReturnCodes `
+                -displayName "$($config.name)"  -version "$version"
+
+                #assignment
+                $selfserviceapp=Get-IntuneApplication | where {$_.displayname -eq "$($config.name)"}| where {$_.displayversion -eq "$version"}
+                $assignmenturi="https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)/assignments"
+                Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                $content = '{"intent":"available","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
+                Invoke-RestMethod -Uri $assignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
+
+            }else{"Selfservice: The newest version of $($config.name): $version is already present in Intune"}
+            
+            if(($Intune_AppUpdate.displayVersion -lt $version) -and ($config.PublishUpdate -eq "true") ){ 
+                "APPUPDATE"       
+                "Sourcefile is: $SourceFile"
+                "publisher is: $($config.publisher)"
+                "description is: $($config.description)"
+                "detectopnrule is: $($DetectionRules | ConvertTo-Json)"
+                "RequirementRule is $($RequirementRules | ConvertTo-Json)"
+                "Version is: $version"
+                Upload-Win32Lob -SourceFile "$SourceFile" -publisher "$($config.publisher)" `
+                -description "$($config.description)" -detectionRules $DetectionRules -returnCodes $ReturnCodes `
+                -displayName "Update-$($config.name)" -RequirementRules $RequirementRules  -version "$version"
+
+                #assignment
+                $updateapp=Get-IntuneApplication | where {$_.displayname -eq "Update-$($config.name)"}| where {$_.displayversion -eq "$version"}
+                $updateassignmenturi="https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)/assignments"
+                Invoke-RestMethod -uri $updateassignmenturi -Headers $global:authToken -Method GET
+                $content = '{"intent":"required","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
+                Invoke-RestMethod -Uri $updateassignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
+
+
+                
+            }else{"Update: The newest version of $($config.name): $version is already present in Intune"}
+        }
     }
     
-
 }
 
-"C:\temp\psgot\appconfig\winrar.json" | Update-PSGOTIntuneApps -intunewinpath "C:\temp\psgot\apps\RARLab.WinRAR\winrar-x64-602.intunewin"
+. C:\ScheduledTask\_SystemMailCredentials.ps1
 
-"WinSCP.WinSCP" | New-PSGOTIntuneWin
-
+connect-azuread -credential $smtpcred
+Test-AuthToken 
+"C:\temp\psgot\appconfig\winrar.json" | Update-PSGOTIntuneApps 
+"C:\temp\psgot\appconfig\Firefox.json" | Update-PSGOTIntuneApps
+"C:\temp\psgot\appconfig\chrome.json" | Update-PSGOTIntuneApps
+"C:\temp\psgot\appconfig\Notepad++.json" | Update-PSGOTIntuneApps
+"C:\temp\psgot\appconfig\winscp.json" | Update-PSGOTIntuneApps
+"WinSCP.WinSCP" | New-PSGOTIntuneWin -Architecture x86
+"Mozilla.Firefox" | New-PSGOTIntuneWin
+"Google.Chrome" | New-PSGOTIntuneWin
 $appname="WinSCP.WinSCP"
+
+"RARLab.WinRAR" | New-PSGOTIntuneWin
+
+New-DetectionRule -Registry -RegistryKeyPath "HKEY_LOCAL_MACHINE" -RegistryDetectionType version -RegistryValue displayname -check32BitRegOn64System false -RegistryDetectionOperator lessThan -RegistryDetectionValue 1.0
+
 
