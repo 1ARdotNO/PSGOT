@@ -100,6 +100,7 @@ function New-PSGOTIntuneWin {
                 if($installer.InstallerLocale){$installer=$installer | where InstallerLocale -eq $locale}
                 if($installer.scope){$installer=$installer | where Scope -eq "machine"}
                 $installer=$installer | where Architecture -eq $Architecture
+                if($installer.count -eq 0){Write-Error "NO INSTALLER FOUND; OR FILTERED BY SELECTION FOR $tinput!"}
                 if($installer.InstallerUrl.count -gt 1){Write-Error "MORE THAN ONE INSTALLER FOR $tinput!"}
                 #create folderstructure
                 New-Item -ItemType Directory "$PSGOTpath\apps" -ErrorAction SilentlyContinue
@@ -109,7 +110,7 @@ function New-PSGOTIntuneWin {
                 $installertype=if($newest.InstallerType){$newest.InstallerType}else{$installer.InstallerType}
                 #selectinstallertype
                 if($installertype -gt 1){
-                    if($installertype | where {$_ -eq "msi"}){$installer=$installer | where InstallerUrl -like "*.msi"}
+                    if($installertype | where {$_ -eq "msi"}){$installer=$installer | where InstallerUrl -like "*.msi*"}
                     $installertype=if($newest.InstallerType){$newest.InstallerType}else{$installer.InstallerType}
                 }
                 $installerext=if($installertype -eq "msi"){"msi"}else{"exe"}
@@ -249,6 +250,15 @@ function Update-PSGOTIntuneApps {
                 $content = '{"intent":"available","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $assignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 
+                #icon
+                if($config.iconname){
+                    $iconbase64=[Convert]::ToBase64String((Get-Content -raw -Path $PSGOTpath\icons\$($config.iconname) -Encoding Byte))
+                    $iconcontent= '{"@odata.type": "#microsoft.graph.win32LobApp", "largeIcon":{ "type": "image/jpeg", "value":"BASE64" }}'
+                    if($config.iconname -like "*.png*"){$iconcontent=$iconcontent.replace('image/jpeg','image/png')}
+                    $iconcontent=$iconcontent.replace('BASE64', $iconbase64)
+                    Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
+                }
+
             }else{"Selfservice: The newest version of $($config.name): $version is already present in Intune"}
     
             if(([version]$Intune_AppUpdate.displayVersion -lt [version]$version) -and ($config.PublishUpdate -eq "true") ){ 
@@ -271,6 +281,14 @@ function Update-PSGOTIntuneApps {
                 $content = '{"intent":"required","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $updateassignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 
+                #icon
+                if($config.iconname){
+                    $iconbase64=[Convert]::ToBase64String((Get-Content -raw -Path $PSGOTpath\icons\$($config.iconname) -Encoding Byte))
+                    $iconcontent= '{"@odata.type": "#microsoft.graph.win32LobApp", "largeIcon":{ "type": "image/jpeg", "value":"BASE64" }}'
+                    if($config.iconname -like "*.png*"){$iconcontent=$iconcontent.replace('image/jpeg','image/png')}
+                    $iconcontent=$iconcontent.replace('BASE64', $iconbase64)
+                    Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
+                }
 
             }else{"Update: The newest version of $($config.name): $version is already present in Intune"}
         }elseif($intunewindetails.type -eq "msi"){
@@ -290,6 +308,15 @@ function Update-PSGOTIntuneApps {
                 Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
                 $content = '{"intent":"available","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $assignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
+
+                #icon
+                if($config.iconname){
+                    $iconbase64=[Convert]::ToBase64String((Get-Content -raw -Path $PSGOTpath\icons\$($config.iconname) -Encoding Byte))
+                    $iconcontent= '{"@odata.type": "#microsoft.graph.win32LobApp", "largeIcon":{ "type": "image/jpeg", "value":"BASE64" }}'
+                    if($config.iconname -like "*.png*"){$iconcontent=$iconcontent.replace('image/jpeg','image/png')}
+                    $iconcontent=$iconcontent.replace('BASE64', $iconbase64)
+                    Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
+                }
 
             }else{"Selfservice: The newest version of $($config.name): $version is already present in Intune"}
             
@@ -312,6 +339,14 @@ function Update-PSGOTIntuneApps {
                 $content = '{"intent":"required","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $updateassignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 
+                #icon
+                if($config.iconname){
+                    $iconbase64=[Convert]::ToBase64String((Get-Content -raw -Path $PSGOTpath\icons\$($config.iconname) -Encoding Byte))
+                    $iconcontent= '{"@odata.type": "#microsoft.graph.win32LobApp", "largeIcon":{ "type": "image/jpeg", "value":"BASE64" }}'
+                    if($config.iconname -like "*.png*"){$iconcontent=$iconcontent.replace('image/jpeg','image/png')}
+                    $iconcontent=$iconcontent.replace('BASE64', $iconbase64)
+                    Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
+                }
 
                 
             }else{"Update: The newest version of $($config.name): $version is already present in Intune"}
@@ -323,19 +358,18 @@ function Update-PSGOTIntuneApps {
 . C:\ScheduledTask\_SystemMailCredentials.ps1
 
 connect-azuread -credential $smtpcred
-Test-AuthToken 
-"C:\temp\psgot\appconfig\winrar.json" | Update-PSGOTIntuneApps 
+Test-AuthToken
+#"C:\temp\psgot\appconfig\winrar.json" | Update-PSGOTIntuneApps 
 "C:\temp\psgot\appconfig\Firefox.json" | Update-PSGOTIntuneApps
 "C:\temp\psgot\appconfig\chrome.json" | Update-PSGOTIntuneApps
 "C:\temp\psgot\appconfig\Notepad++.json" | Update-PSGOTIntuneApps
 "C:\temp\psgot\appconfig\winscp.json" | Update-PSGOTIntuneApps
+"C:\temp\psgot\appconfig\LogitechOptions.json" | Update-PSGOTIntuneApps
+"C:\temp\psgot\appconfig\keepass.json"| Update-PSGOTIntuneApps
+Get-ChildItem "C:\temp\psgot\appconfig\" | foreach {$_.fullname | Update-PSGOTIntuneApps}
+
+"DominikReichl.KeePass" | New-PSGOTIntuneWin -Architecture x86
 "WinSCP.WinSCP" | New-PSGOTIntuneWin -Architecture x86
 "Mozilla.Firefox" | New-PSGOTIntuneWin
 "Google.Chrome" | New-PSGOTIntuneWin
 $appname="WinSCP.WinSCP"
-
-"RARLab.WinRAR" | New-PSGOTIntuneWin
-
-New-DetectionRule -Registry -RegistryKeyPath "HKEY_LOCAL_MACHINE" -RegistryDetectionType version -RegistryValue displayname -check32BitRegOn64System false -RegistryDetectionOperator lessThan -RegistryDetectionValue 1.0
-
-
