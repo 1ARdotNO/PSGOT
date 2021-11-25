@@ -12,3 +12,6 @@ Planned installation providers;
 -GPO
 -Intune
 -Standalone CLI client
+
+Active installation providers:
+-Intune
