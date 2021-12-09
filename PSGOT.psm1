@@ -50,7 +50,7 @@ function Initialize-PSGOT {
             }
             else {
                 write-output "Cloning fresh $($_.url)"
-                . git clone $_.url "$path\winget\$(($_ | get-member | where membertype -eq noteproperty).name)"
+                . git clone $_.$(($_ | get-member | where membertype -eq noteproperty).name).url "$path\winget\$(($_ | get-member | where membertype -eq noteproperty).name)"
             }
         }
     }
@@ -103,7 +103,6 @@ function New-PSGOTIntuneWin {
                 if ($installer.scope) { $installer = $installer | where Scope -eq "machine" }
                 $installer = $installer | where Architecture -eq $Architecture
                 if ($installer.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY SELECTION FOR $tinput!" }
-                if ($installer.InstallerUrl.count -gt 1) { Write-Error "MORE THAN ONE INSTALLER FOR $tinput!" }
                 #create folderstructure
                 New-Item -ItemType Directory "$PSGOTpath\apps" -ErrorAction SilentlyContinue
                 New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)" -ErrorAction SilentlyContinue
@@ -115,6 +114,7 @@ function New-PSGOTIntuneWin {
                     if ($installertype | where { $_ -eq "msi" }) { $installer = $installer | where InstallerUrl -like "*.msi*" }
                     $installertype = if ($newest.InstallerType) { $newest.InstallerType }else { $installer.InstallerType }
                 }
+                if ($installer.InstallerUrl.count -gt 1) { Write-Error "MORE THAN ONE INSTALLER FOR $tinput!" }
                 $installerext = if ($installertype -eq "msi") { "msi" }else { "exe" }
                 #Download installer
                 if (!(test-path "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext")) {
@@ -179,7 +179,7 @@ function Update-PSGOTIntuneApps {
         $sleep = 30
         ###
         $config = get-content $appconfigfile | ConvertFrom-Json
-        $intunewindetails = $config.appidentifier | New-PSGOTIntuneWin -Architecture $config.Architecture
+        $intunewindetails = $config.appidentifier | New-PSGOTIntuneWin -Architecture $config.Architecture -PSGOTpath $PSGOTpath
 
         $version = $intunewindetails.version
         $SourceFile = $intunewindetails.intunewinfilename
@@ -265,6 +265,13 @@ function Update-PSGOTIntuneApps {
                     Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
                 }
 
+                #Unassign old versions
+                $Intune_App | ForEach-Object {
+                    $assignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($_.id)/assignments"
+                    $assignments=Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                    if($assignments.value.id){Invoke-RestMethod -uri "$assignmenturi/$($assignments.value.id)" -Headers $global:authToken -Method DELETE}
+                }
+
             }
             else { "Selfservice: The newest version of $($config.name): $version is already present in Intune" }
     
@@ -296,6 +303,12 @@ function Update-PSGOTIntuneApps {
                     $iconcontent = $iconcontent.replace('BASE64', $iconbase64)
                     Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
                 }
+                #Unassign old versions
+                $Intune_AppUpdate | ForEach-Object {
+                    $assignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($_.id)/assignments"
+                    $assignments=Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                    if($assignments.value.id){Invoke-RestMethod -uri "$assignmenturi/$($assignments.value.id)" -Headers $global:authToken -Method DELETE}
+                }
 
             }
             else { "Update: The newest version of $($config.name): $version is already present in Intune" }
@@ -325,6 +338,12 @@ function Update-PSGOTIntuneApps {
                     if ($config.iconname -like "*.png*") { $iconcontent = $iconcontent.replace('image/jpeg', 'image/png') }
                     $iconcontent = $iconcontent.replace('BASE64', $iconbase64)
                     Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
+                }
+                #Unassign old versions
+                $Intune_App | ForEach-Object {
+                    $assignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($_.id)/assignments"
+                    $assignments=Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                    if($assignments.value.id){Invoke-RestMethod -uri "$assignmenturi/$($assignments.value.id)" -Headers $global:authToken -Method DELETE}
                 }
 
             }
@@ -356,6 +375,12 @@ function Update-PSGOTIntuneApps {
                     if ($config.iconname -like "*.png*") { $iconcontent = $iconcontent.replace('image/jpeg', 'image/png') }
                     $iconcontent = $iconcontent.replace('BASE64', $iconbase64)
                     Invoke-RestMethod -Uri "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)" -Method patch -Body $iconcontent -ContentType 'application/json' -Headers $global:authToken
+                }
+                #Unassign old versions
+                $Intune_AppUpdate | ForEach-Object {
+                    $assignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($_.id)/assignments"
+                    $assignments=Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                    if($assignments.value.id){Invoke-RestMethod -uri "$assignmenturi/$($assignments.value.id)" -Headers $global:authToken -Method DELETE}
                 }
 
                 
