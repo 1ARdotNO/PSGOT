@@ -138,6 +138,9 @@ function New-PSGOTIntuneWin {
                 }
                 else { "file already exists: $PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$installername" }
                 switch ($installertype) {
+                    burn {
+                        $installerswitches = "-q InstallAllUsers=1"
+                    }
                     inno {
                         $installerswitches = "/NORESTART /ALLUSERS /SILENT"
                     }
