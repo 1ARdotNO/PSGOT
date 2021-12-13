@@ -69,7 +69,8 @@ function New-PSGOTIntuneWin {
         [Parameter(ValueFromPipeline)]$appname,
         $version = "newest",
         $locale = "en-US",
-        $Architecture = "x64"
+        $Architecture = "x64",
+        $installtype= "exe"
     )
     BEGIN {
         $config = Get-Content "$PSGOTpath\config.json" | ConvertFrom-Json
@@ -119,10 +120,15 @@ function New-PSGOTIntuneWin {
                 $installertype = if ($newest.InstallerType) { $newest.InstallerType }else { $installer.InstallerType }
                 #selectinstallertype
                 if ($installertype -gt 1) {
-                    if ($installertype | where { $_ -eq "msi" }) { $installer = $installer | where InstallerUrl -like "*.msi*" }
+                    if($installtype -eq "exe"){
+                        if ($installertype | where { $_ -ne "msi" }) { $installer = $installer | where InstallerUrl -like "*.exe*" }
+                    }else{
+                        if ($installertype | where { $_ -eq "msi" }) { $installer = $installer | where InstallerUrl -like "*.msi*" }
+                    }
                     $installertype = if ($newest.InstallerType) { $newest.InstallerType }else { $installer.InstallerType }
                 }
                 if ($installer.InstallerUrl.count -gt 1) { Write-Error "MORE THAN ONE INSTALLER FOR $tinput!" }
+                if ($installer.InstallerUrl.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY INSTALLERTYPE SELECTION FOR $tinput!" }
                 $installerext = if ($installertype -eq "msi") { "msi" }else { "exe" }
                 #Download installer
                 if (!(test-path "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext")) {
@@ -187,7 +193,7 @@ function Update-PSGOTIntuneApps {
         $sleep = 30
         ###
         $config = get-content $appconfigfile | ConvertFrom-Json
-        $intunewindetails = $config.appidentifier | New-PSGOTIntuneWin -Architecture $config.Architecture -PSGOTpath $PSGOTpath
+        $intunewindetails = $config.appidentifier | New-PSGOTIntuneWin -Architecture $config.Architecture -PSGOTpath $PSGOTpath -installtype $config.installtype
 
         $version = $intunewindetails.version
         $SourceFile = $intunewindetails.intunewinfilename
@@ -1047,7 +1053,7 @@ function GetWin32AppBody() {
         $body.displayName = $displayName;
         $body.displayVersion = $version;
         $body.fileName = $filename;
-        $body.installCommandLine = "msiexec /i `"$SetupFileName`""
+        $body.installCommandLine = "msiexec /i `"$SetupFileName`" /quiet /qn /norestart"
         $body.installExperience = @{"runAsAccount" = "$installExperience" };
         $body.informationUrl = $null;
         $body.isFeatured = $false;
