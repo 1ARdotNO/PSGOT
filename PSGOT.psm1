@@ -95,7 +95,15 @@ function New-PSGOTIntuneWin {
                         
                     } | sort -Descending
                     $newestversion = $versions[0]
-                    $available | where { $_.packageversion -eq $newestversion.tostring() }
+                    $available | foreach-object {
+                        
+                    }
+                    if($newestversion.major -ne "-1"){$tempversion=$available |  where { $_.packageversion -like "$($newestversion.major)*" }}
+                    if($newestversion.minor -ne "-1"){$tempversion=$tempversion |  where { $_.packageversion -like "*$($newestversion.minor)*" }}
+                    if($newestversion.build -ne "-1"){$tempversion=$tempversion |  where { $_.packageversion -like "*$($newestversion.build)*" }}
+                    if($newestversion.revision -ne "-1"){$tempversion=$tempversion |  where { $_.packageversion -like "*$($newestversion.revision)*" }}
+                    $tempversion
+                    #| where { $_.packageversion -eq $newestversion.tostring() }
                 }
                 else { $available }
                 $installer = $newest.installers 
@@ -147,7 +155,7 @@ function New-PSGOTIntuneWin {
                 if ($installertype) { $installertype | out-file "$intunefilename.installertype" }
                 @{
                     intunewinfilename = $intunefilename
-                    version           = $newest.PackageVersion
+                    version           = $newest.PackageVersion.tostring().replace(',','.')
                     new               = $new
                     type              = $installerext
                 }
@@ -252,7 +260,7 @@ function Update-PSGOTIntuneApps {
                 #assignment
                 $selfserviceapp = Get-IntuneApplication | where { $_.displayname -eq "$($config.name)" } | where { $_.displayversion -eq "$version" }
                 $assignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)/assignments"
-                Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                #Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
                 $content = '{"intent":"available","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $assignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 
@@ -291,7 +299,7 @@ function Update-PSGOTIntuneApps {
                 #assignment
                 $updateapp = Get-IntuneApplication | where { $_.displayname -eq "Update-$($config.name)" } | where { $_.displayversion -eq "$version" }
                 $updateassignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)/assignments"
-                Invoke-RestMethod -uri $updateassignmenturi -Headers $global:authToken -Method GET
+                #Invoke-RestMethod -uri $updateassignmenturi -Headers $global:authToken -Method GET
                 $content = '{"intent":"required","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $updateassignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 
@@ -327,7 +335,7 @@ function Update-PSGOTIntuneApps {
                 #assignment
                 $selfserviceapp = Get-IntuneApplication | where { $_.displayname -eq "$($config.name)" } | where { $_.displayversion -eq "$version" }
                 $assignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($selfserviceapp.id)/assignments"
-                Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
+                #Invoke-RestMethod -uri $assignmenturi -Headers $global:authToken -Method GET
                 $content = '{"intent":"available","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $assignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 
@@ -364,7 +372,7 @@ function Update-PSGOTIntuneApps {
                 #assignment
                 $updateapp = Get-IntuneApplication | where { $_.displayname -eq "Update-$($config.name)" } | where { $_.displayversion -eq "$version" }
                 $updateassignmenturi = "https://graph.microsoft.com/beta/deviceAppManagement/mobileApps/$($updateapp.id)/assignments"
-                Invoke-RestMethod -uri $updateassignmenturi -Headers $global:authToken -Method GET
+                #Invoke-RestMethod -uri $updateassignmenturi -Headers $global:authToken -Method GET
                 $content = '{"intent":"required","source": "direct", "sourceId": null,"target":{"@odata.type": "#microsoft.graph.allLicensedUsersAssignmentTarget"}}'
                 Invoke-RestMethod -Uri $updateassignmenturi -Headers $global:authToken -Method Post -Body $content -ContentType 'application/json'
 

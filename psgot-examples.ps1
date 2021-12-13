@@ -14,8 +14,6 @@ $global:authToken = Get-AuthTokenWithUsernameAndpassword -user "$smtpsender" -pa
 (Get-ChildItem "$PSGOTPATH\appconfig\" | where {$_.name -notlike "_*"}).fullname  | Update-PSGOTIntuneApps
 
 
-
-
 <#TESTING STUFF
 
 . C:\ScheduledTask\_SystemMailCredentials.ps1
