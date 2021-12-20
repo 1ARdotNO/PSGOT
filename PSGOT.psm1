@@ -86,7 +86,11 @@ function New-PSGOTIntuneWin {
             winget {
                 $tinput = $input
                 $available = $GLOBAL:yamlimport | where { $_.PackageIdentifier -eq $tinput }
-                $newest = if ($available.packageversion -gt 1) {
+                $newest = 
+                if ($version -like "*.*"){
+                    $available | where { $_.packageversion -eq $version.tostring() }
+                }
+                elseif ($available.packageversion -gt 1) {
                     $versions = $available.packageversion | ForEach-Object {
                         $tempversion = $_
                         if ($tempversion -notlike "*.*") {
@@ -188,6 +192,7 @@ function Update-PSGOTIntuneApps {
     }
     PROCESS {
         ##Intune settings 
+        write-output "Start processing of $appconfigfile"
         $baseUrl = "https://graph.microsoft.com/beta/deviceAppManagement/"
         $logRequestUris = $true;
         $logHeaders = $false;
@@ -203,7 +208,9 @@ function Update-PSGOTIntuneApps {
         
         #get version oapp from intune, if it exists
         $Intune_App = Get-IntuneApplication | where { $_.displayName -eq "$($config.name)" } | Sort-Object displayversion
-        $Intune_AppUpdate = Get-IntuneApplication | where { $_.displayName -eq "Update-$($config.name)" }
+        $Intune_AppUpdate = Get-IntuneApplication | where { $_.displayName -eq "Update-$($config.name)" }  | Sort-Object displayversion
+        $Intune_App_newest = if($Intune_App.count -gt 1){($Intune_App | sort displayversion -Descending)[0]}else{$Intune_App}
+        $Intune_AppUpdate_newest = if($Intune_AppUpdate.count -gt 1){($Intune_App | sort displayversion -Descending)[0]}else{$Intune_AppUpdate} 
         # Defining Intunewin32 detectionRules
         $DetectionXML = Get-IntuneWinXML "$SourceFile" -fileName "detection.xml"
         
@@ -255,7 +262,7 @@ function Update-PSGOTIntuneApps {
         $DetectionRules = @($DetectionRule)
         # Win32 Application Upload
         if ($intunewindetails.type -eq "exe") {
-            if ([version]$Intune_App.displayVersion -lt [version]$version ) {        
+            if ((([version]"$($Intune_App_newest.displayVersion)" -lt [version]$version) -or ($Intune_App.count -eq 0)) -and ($config.PublishSelfservice -eq "true") ) {        
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
                 "description is: $($config.description)"
@@ -292,7 +299,7 @@ function Update-PSGOTIntuneApps {
             }
             else { "Selfservice: The newest version of $($config.name): $version is already present in Intune" }
     
-            if (([version]$Intune_AppUpdate.displayVersion -lt [version]$version) -and ($config.PublishUpdate -eq "true") ) { 
+            if ((([version]"$($Intune_AppUpdate_newest.displayVersion)" -lt [version]$version) -or ($Intune_AppUpdate.count -eq 0)) -and ($config.PublishUpdate -eq "true") ) { 
                 "APPUPDATE"       
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
@@ -331,7 +338,7 @@ function Update-PSGOTIntuneApps {
             else { "Update: The newest version of $($config.name): $version is already present in Intune" }
         }
         elseif ($intunewindetails.type -eq "msi") {
-            if ($Intune_App.displayVersion -lt $version ) {        
+            if ((([version]"$($Intune_App_newest.displayVersion)" -lt [version]$version) -or ($Intune_App.count -eq 0)) -and ($config.PublishSelfservice -eq "true") ) {        
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
                 "description is: $($config.description)"
@@ -366,7 +373,7 @@ function Update-PSGOTIntuneApps {
             }
             else { "Selfservice: The newest version of $($config.name): $version is already present in Intune" }
             
-            if (($Intune_AppUpdate.displayVersion -lt $version) -and ($config.PublishUpdate -eq "true") ) { 
+            if ((([version]"$($Intune_AppUpdate_newest.displayVersion)" -lt [version]$version) -or ($Intune_AppUpdate.count -eq 0)) -and ($config.PublishUpdate -eq "true") ) { 
                 "APPUPDATE"       
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
