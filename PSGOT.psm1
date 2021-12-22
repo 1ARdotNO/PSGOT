@@ -94,21 +94,22 @@ function New-PSGOTIntuneWin {
                     $versions = $available.packageversion | ForEach-Object {
                         $tempversion = $_
                         if ($tempversion -notlike "*.*") {
-                            [version]"$tempversion.0"
+                            [pscustomobject]@{
+                                rawversion = $tempversion
+                                version = [version]"$tempversion.0"
+                            }
                         }
-                        else { [version]$_ }
+                        else { 
+                            [pscustomobject]@{
+                                rawversion = $tempversion
+                                version = [version]$_ 
+                            }
+                        }
                         
-                    } | sort -Descending
+                    } | sort version -Descending
                     $newestversion = $versions[0]
-                    $available | foreach-object {
-                        
-                    }
-                    if($newestversion.major -ne "-1"){$tempversion=$available |  where { $_.packageversion -like "$($newestversion.major)*" }}
-                    if($newestversion.minor -ne "-1"){$tempversion=$tempversion |  where { $_.packageversion -like "*$($newestversion.minor)*" }}
-                    if($newestversion.build -ne "-1"){$tempversion=$tempversion |  where { $_.packageversion -like "*$($newestversion.build)*" }}
-                    if($newestversion.revision -ne "-1"){$tempversion=$tempversion |  where { $_.packageversion -like "*$($newestversion.revision)*" }}
-                    $tempversion
-                    #| where { $_.packageversion -eq $newestversion.tostring() }
+
+                    $available | where { $_.packageversion -eq $newestversion.rawversion }
                 }
                 else { $available }
                 $installer = $newest.installers 
@@ -260,9 +261,11 @@ function Update-PSGOTIntuneApps {
         }
         $RequirementRules = @($RequirementRule)
         $DetectionRules = @($DetectionRule)
+        $newAppversionavalable=if($Intune_App.count -eq 0){"yes"}elseif(([version]"$($Intune_App_newest.displayVersion)" -lt [version]$version)){"yes"}else{"no"}
+        $newAppUpdateversionavalable=if($Intune_AppUpdate.count -eq 0){"yes"}elseif(([version]"$($Intune_AppUpdate_newest.displayVersion)" -lt [version]$version)){"yes"}else{"no"}
         # Win32 Application Upload
         if ($intunewindetails.type -eq "exe") {
-            if ((([version]"$($Intune_App_newest.displayVersion)" -lt [version]$version) -or ($Intune_App.count -eq 0)) -and ($config.PublishSelfservice -eq "true") ) {        
+            if ((($newAppversionavalable -eq "yes") -or ($Intune_App.count -eq 0)) -and ($config.PublishSelfservice -eq "true") ) {        
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
                 "description is: $($config.description)"
@@ -299,7 +302,7 @@ function Update-PSGOTIntuneApps {
             }
             else { "Selfservice: The newest version of $($config.name): $version is already present in Intune" }
     
-            if ((([version]"$($Intune_AppUpdate_newest.displayVersion)" -lt [version]$version) -or ($Intune_AppUpdate.count -eq 0)) -and ($config.PublishUpdate -eq "true") ) { 
+            if ((($newAppUpdateversionavalable -eq "yes") -or ($Intune_AppUpdate.count -eq 0)) -and ($config.PublishUpdate -eq "true") ) { 
                 "APPUPDATE"       
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
@@ -338,7 +341,7 @@ function Update-PSGOTIntuneApps {
             else { "Update: The newest version of $($config.name): $version is already present in Intune" }
         }
         elseif ($intunewindetails.type -eq "msi") {
-            if ((([version]"$($Intune_App_newest.displayVersion)" -lt [version]$version) -or ($Intune_App.count -eq 0)) -and ($config.PublishSelfservice -eq "true") ) {        
+            if ((($newAppversionavalable -eq "yes") -or ($Intune_App.count -eq 0)) -and ($config.PublishSelfservice -eq "true") ) {        
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
                 "description is: $($config.description)"
@@ -373,7 +376,7 @@ function Update-PSGOTIntuneApps {
             }
             else { "Selfservice: The newest version of $($config.name): $version is already present in Intune" }
             
-            if ((([version]"$($Intune_AppUpdate_newest.displayVersion)" -lt [version]$version) -or ($Intune_AppUpdate.count -eq 0)) -and ($config.PublishUpdate -eq "true") ) { 
+            if ((($newAppUpdateversionavalable -eq "yes") -or ($Intune_AppUpdate.count -eq 0)) -and ($config.PublishUpdate -eq "true") ) { 
                 "APPUPDATE"       
                 "Sourcefile is: $SourceFile"
                 "publisher is: $($config.publisher)"
