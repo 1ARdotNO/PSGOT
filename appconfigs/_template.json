@@ -1,0 +1,9 @@
+{
+    "appidentifier":  "asdasd.asdasd",
+    "name":  "Applicationprettyname",
+    "Description":  "Descriptionlongtext",
+    "Publisher":  "Publisher",
+    "Category":  "Set category, must exist!",
+    "Restartbehaviour":  "",
+    "Installbehavior":  "user or system"
+}
