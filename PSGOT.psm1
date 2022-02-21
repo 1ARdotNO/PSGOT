@@ -128,7 +128,8 @@ function New-PSGOTIntuneWin {
                 }
                 if ($installer.InstallerLocale) { $installer = $installer | where InstallerLocale -eq $locale }
                 if ($installer.scope) { $installer = $installer | where Scope -eq "machine" }
-                $installer = $installer | where Architecture -eq $Architecture
+                if ($installer.Architecture -eq "neutral")  {}
+                elseif ($installer.Architecture)  {$installer = $installer | where Architecture -eq $Architecture}
                 if ($installer.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY SELECTION FOR $tinput!" }
                 if ($installer.InstallerUrl.count -gt 1) { Write-Error "MORE THAN ONE INSTALLER FOR $tinput!" }
                 if ($installer.InstallerUrl.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY INSTALLERTYPE SELECTION FOR $tinput!" }
