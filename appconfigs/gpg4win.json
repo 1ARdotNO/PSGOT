@@ -1,0 +1,25 @@
+{
+  "appidentifier": "GnuPG.Gpg4win",
+  "architecture": "x86",
+  "installtype": "exe",
+  "name": "Gpg4win",
+  "Description": "Gpg4win - a secure solution for file and email encryption.
+Description: Gpg4win enables users to securely transport emails and files with the help of encryption and digital signatures. Encryption protects the contents against an unwanted party reading it. Digital signatures make sure that it was not modified and comes from a specific sender.",
+  "Publisher": "Neonomics",
+  "iconname": "gpg4win-logo.png",
+  "Category": "",
+  "Restartbehaviour": "",
+  "Installbehavior": "user or system",
+  "PublishSelfservice": "true",
+  "Detectionrule": "registry",
+  "DetectionRegistryKeyPath": "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Gpg4win",
+  "DetectionRegistryValue": "DisplayVersion",
+  "DetectionRegistryDetectionType": "version",
+  "DetectionRegistryDetectionOperator": "greaterThanOrEqual",
+  "PublishUpdate": "true",
+  "UpdateRequirementrule": "registry",
+  "UpdateRequirementRegistryKeyPath": "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Gpg4win",
+  "UpdateRequirementRegistryValue": "DisplayVersion",
+  "UpdateRequirementRegistryDetectionType": "version",
+  "UpdateRequirementRegistryDetectionOperator": "lessThan"
+}

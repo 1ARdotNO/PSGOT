@@ -1,0 +1,22 @@
+{
+  "appidentifier": "RARLab.WinRAR",
+  "installtype": "exe",
+  "architecture": "x64",
+  "name": "Winrar",
+  "Description": "unzipstuff",
+  "Publisher": "Neonomics",
+  "Category": "",
+  "Restartbehaviour": "",
+  "Installbehavior": "user or system",
+  "Detectionrule": "registry",
+  "DetectionRegistryKeyPath": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WinRAR archiver",
+  "DetectionRegistryValue": "DisplayVersion",
+  "DetectionRegistryDetectionType": "version",
+  "DetectionRegistryDetectionOperator": "greaterThanOrEqual",
+  "PublishUpdate": "true",
+  "UpdateRequirementrule": "registry",
+  "UpdateRequirementRegistryKeyPath": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WinRAR archiver",
+  "UpdateRequirementRegistryValue": "DisplayVersion",
+  "UpdateRequirementRegistryDetectionType": "version",
+  "UpdateRequirementRegistryDetectionOperator": "lessThan"
+}
