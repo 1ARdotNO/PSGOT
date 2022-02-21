@@ -84,7 +84,7 @@ function New-PSGOTIntuneWin {
     PROCESS {
         switch ($repotype) {
             winget {
-                $tinput = $input
+                $tinput = $appname
                 $available = $GLOBAL:yamlimport | where { $_.PackageIdentifier -eq $tinput }
                 $newest = 
                 if ($version -like "*.*"){
@@ -112,15 +112,7 @@ function New-PSGOTIntuneWin {
                     $available | where { $_.packageversion -eq $newestversion.rawversion }
                 }
                 else { $available }
-                $installer = $newest.installers 
-                if ($installer.InstallerLocale) { $installer = $installer | where InstallerLocale -eq $locale }
-                if ($installer.scope) { $installer = $installer | where Scope -eq "machine" }
-                $installer = $installer | where Architecture -eq $Architecture
-                if ($installer.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY SELECTION FOR $tinput!" }
-                #create folderstructure
-                New-Item -ItemType Directory "$PSGOTpath\apps" -ErrorAction SilentlyContinue
-                New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)" -ErrorAction SilentlyContinue
-                New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)" -ErrorAction SilentlyContinue
+                $installer = $newest.installers
                 #determineinstallertype
                 $installertype = if ($newest.InstallerType) { $newest.InstallerType }else { $installer.InstallerType }
                 #selectinstallertype
@@ -129,11 +121,21 @@ function New-PSGOTIntuneWin {
                         if ($installertype | where { $_ -ne "msi" }) { $installer = $installer | where InstallerUrl -like "*.exe*" }
                     }else{
                         if ($installertype | where { $_ -eq "msi" }) { $installer = $installer | where InstallerUrl -like "*.msi*" }
+                        #Treat "wix" as the same as msi
+                        elseif ($installertype | where { $_ -eq "wix" }) { $installer = $installer | where InstallerUrl -like "*.msi*"; $installertype="msi" }
                     }
-                    $installertype = if ($newest.InstallerType) { $newest.InstallerType }else { $installer.InstallerType }
+                    #$installertype = if ($newest.InstallerType) { $newest.InstallerType }else { $installer.InstallerType }
                 }
+                if ($installer.InstallerLocale) { $installer = $installer | where InstallerLocale -eq $locale }
+                if ($installer.scope) { $installer = $installer | where Scope -eq "machine" }
+                $installer = $installer | where Architecture -eq $Architecture
+                if ($installer.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY SELECTION FOR $tinput!" }
                 if ($installer.InstallerUrl.count -gt 1) { Write-Error "MORE THAN ONE INSTALLER FOR $tinput!" }
                 if ($installer.InstallerUrl.count -eq 0) { Write-Error "NO INSTALLER FOUND; OR FILTERED BY INSTALLERTYPE SELECTION FOR $tinput!" }
+                #create folderstructure
+                New-Item -ItemType Directory "$PSGOTpath\apps" -ErrorAction SilentlyContinue
+                New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)" -ErrorAction SilentlyContinue
+                New-Item -ItemType Directory "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)" -ErrorAction SilentlyContinue
                 $installerext = if ($installertype -eq "msi") { "msi" }else { "exe" }
                 #Download installer
                 if (!(test-path "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext")) {
@@ -159,6 +161,7 @@ function New-PSGOTIntuneWin {
                         $installerprefix = "msiexec /i"
                         $installerswitches = "/quiet /qn /norestart"
                     }
+
                 }
                 "Creating intunewin...."
                 $intuneresult = . $PSGOTpath\IntuneWinAppUtil.exe -c "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)" -s "$PSGOTpath\apps\$($newest.PackageIdentifier)\$($newest.PackageVersion)\$($newest.PackageIdentifier)-$($newest.PackageVersion).$installerext" -o "$PSGOTpath\apps\$($newest.PackageIdentifier)\" -q
